@@ -4,7 +4,7 @@ RUN apt-get update
 RUN apt-get -y upgrade
 
 # Install apache, PHP, and supplimentary programs. curl and lynx-cur are for debugging the container.
-RUN DEBIAN_FRONTEND=noninteractive apt-get -y install apache2 libapache2-mod-php5 php5-mysql php5-gd php-pear php-apc php5-curl php5-ldap curl lynx-cur
+RUN DEBIAN_FRONTEND=noninteractive apt-get -y install apache2 apache2-utils libapache2-mod-php5 php5-mysql php5-gd php-pear php-apc php5-curl php5-ldap curl lynx-cur
 
 # Enable apache mods.
 RUN php5enmod openssl
@@ -24,8 +24,35 @@ ENV APACHE_PID_FILE /var/run/apache2.pid
 
 EXPOSE 80
 
-# Update the default apache site with the config we created.
-ADD apache-config.conf /etc/apache2/sites-enabled/000-default.conf
+# Update the default apache site with the configs we created.
+ADD apache-default-host.conf /etc/apache2/sites-enabled/000-default.conf
+ADD apache-default-varnish-host.conf /etc/apache2/sites-available/000-default-varnish.conf
+ADD apache-default-dotnet-host.conf /etc/apache2/sites-available/000-default-dotnet.conf
+ADD ssl_environment_variable.conf /etc/apache2/conf-available/ssl_environment_variable.conf
+ADD listen_8080.conf /etc/apache2/conf-available/listen_8080.conf
 
-# By default, simply start apache.
-CMD /usr/sbin/apache2ctl -D FOREGROUND
+# Enable and disable config options and Apache modules
+RUN a2enconf ssl_environment_variable
+RUN a2enmod actions \
+  alias \
+  deflate \
+  dir \
+  expires \
+  headers \
+  mime \
+  negotiation \
+  rewrite \
+  setenvif \
+  proxy \
+  proxy_http
+
+RUN a2dismod autoindex
+
+RUN sed -i -e 's/ServerSignature On/ServerSignature Off/g' /etc/apache2/conf-available/security.conf
+
+# Set /var/www/ permissions
+RUN chown -R root:root /var/www && chmod -R 755 /var/www
+
+# Remove default site.
+RUN rm -Rf /var/www/html
+
